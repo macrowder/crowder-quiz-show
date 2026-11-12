@@ -353,7 +353,10 @@
     }
     return { ok: false };
   }
-  const mainAnswer = q => q.answer.split("|")[0].trim();
+  // Google Sheets turns the words True/False into TRUE/FALSE, so compare without caring about capitals.
+  const same = (x, y) => String(x).trim().toLowerCase() === String(y).trim().toLowerCase();
+  const cap = w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  const mainAnswer = q => { const a = String(q.answer).split("|")[0].trim(); return q.type === "tf" ? cap(a) : a; };
 
   function answer(q, given) {
     if (R.locked) return;
@@ -364,7 +367,7 @@
     if (q.type === "short") {
       const c = checkShort(given, q.answer); ok = c.ok;
       if (ok && !c.exact) spellingNote = "Spelling: " + mainAnswer(q);
-    } else ok = given !== null && given === q.answer;
+    } else ok = given !== null && same(given, q.answer);
 
     let pts = 0;
     R.total++;
@@ -386,7 +389,7 @@
              round: R.id + (R.retry && R.missed.some(m => m.q.id === q.id && m.retried) ? " retry" : "") });
 
     // Mark tiles
-    document.querySelectorAll(".tile").forEach(t => t.classList.add(t.dataset.v === q.answer ? "right" : "dim"));
+    document.querySelectorAll(".tile").forEach(t => t.classList.add(same(t.dataset.v, q.answer) ? "right" : "dim"));
     const stage = document.querySelector(".stage");
     setTimeout(() => {
       if (ok) {
