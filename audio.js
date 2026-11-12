@@ -101,7 +101,7 @@
       if (v) u.voice = v;
       u.onend = finish; u.onerror = finish;
       duck(true); speechSynthesis.speak(u);
-      setTimeout(finish, Math.max(4000, text.length * 90));
+      setTimeout(finish, Math.max(5000, text.length * 120));
     } catch (e) { finish(); }
   }
   function stopSpeaking() { try { speechSynthesis.cancel(); } catch (e) {} duck(false); }

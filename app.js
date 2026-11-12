@@ -389,15 +389,28 @@
       } else {
         const fix = fixText(q);
         const o = el(`<div class="overlay bad"><div class="big">${given == null ? "Time's up" : "Not quite"}</div><p class="fix">${esc(fix)}</p>
-          <button class="btn" type="button">Next question <span class="kbd">Enter</span></button></div>`);
-        const go = () => { R.i++; next(); };
-        o.querySelector("button").addEventListener("click", go);
+          <p class="muted listening">Listen to the answer...</p>
+          <button class="btn" type="button" hidden>Next question <span class="kbd">Enter</span></button></div>`);
         stage.appendChild(o);
-        o.querySelector("button").focus();
-        keyHandler = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
-        A.speak((given == null ? "Time's up. " : "Not quite. ") + fix);
+        afterSpeech(o, (given == null ? "Time's up. " : "Not quite. ") + fix);
       }
     }, 400);
+  }
+
+  /* Read the correction out loud. The Next button stays hidden until the reading is finished. */
+  function afterSpeech(o, text) {
+    const btn = o.querySelector("button"), note = o.querySelector(".listening");
+    const minMs = Math.min(8000, Math.max(2000, text.length * 45)), t0 = performance.now();
+    keyHandler = null;
+    const go = () => { R.i++; next(); };
+    btn.addEventListener("click", go);
+    A.speak(text, () => {
+      setTimeout(() => {
+        if (!o.isConnected) return;
+        note.hidden = true; btn.hidden = false; btn.focus();
+        keyHandler = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
+      }, Math.max(300, minMs - (performance.now() - t0)));
+    });
   }
 
   function fixText(q) {
@@ -474,12 +487,10 @@
         A.sfx("wrong");
         const o = el(`<div class="overlay bad"><div class="big">Review these</div>
           <ul>${missedItems.map(q => `<li><b>${esc(q.answer)}</b>: ${esc(q.question)}</li>`).join("")}</ul>
-          <button class="btn" type="button">Next <span class="kbd">Enter</span></button></div>`);
-        const go = () => { R.i++; next(); };
-        o.querySelector("button").addEventListener("click", go);
-        stage.appendChild(o); o.querySelector("button").focus();
-        keyHandler = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
-        A.speak("Review these. " + missedItems.map(q => q.answer + ": " + q.question).join(". "));
+          <p class="muted listening">Listen to the answers...</p>
+          <button class="btn" type="button" hidden>Next <span class="kbd">Enter</span></button></div>`);
+        stage.appendChild(o);
+        afterSpeech(o, "Review these. " + missedItems.map(q => q.answer + ": " + q.question).join(". "));
       }
     }
     function isDone(q) { return [...defs.children].some(b => b._q === q && b.classList.contains("done")); }
