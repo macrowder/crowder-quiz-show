@@ -326,23 +326,30 @@
     return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
       .replace(/[^a-z0-9 ]/g, " ").replace(/\b(the|a|an)\b/g, " ").replace(/\s+/g, " ").trim();
   }
-  function lev(a, b) {
+  // Edit distance where swapping two neighboring letters counts as one slip ("tarrif" vs "tariff").
+  function dist(a, b) {
     const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
-    let prev = Array.from({ length: n + 1 }, (_, j) => j);
-    for (let i = 1; i <= m; i++) {
-      const cur = [i];
-      for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = cur;
+    const d = Array.from({ length: m + 1 }, (_, i) => [i].concat(new Array(n).fill(0)));
+    for (let j = 0; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
     }
-    return prev[n];
+    return d[m][n];
   }
+  // Singular and plural count the same: tariff = tariffs, colony = colonies.
+  const stem = w => w.split(" ").map(x => x.replace(/ies$/, "y").replace(/(ch|sh|x|ss)es$/, "$1").replace(/(?<!s)s$/, "")).join(" ");
   function checkShort(given, answer) {
-    const g = norm(given); if (!g) return { ok: false };
-    const alts = answer.split("|").map(norm).filter(Boolean);
+    const g = stem(norm(given)); if (!g) return { ok: false };
+    const alts = answer.split("|").map(x => stem(norm(x))).filter(Boolean);
     for (const a of alts) {
-      if (g === a || g.replace(/s$/, "") === a.replace(/s$/, "")) return { ok: true, exact: true };
-      const allowed = a.length >= 9 ? 2 : a.length >= 5 ? 1 : 0;
-      if (allowed && lev(g, a) <= allowed) return { ok: true, exact: false };
+      if (g === a) return { ok: true, exact: true };
+      // Doubled letters are a common slip: tarrif / tariff, Hugenots / Huguenots
+      const single = w => w.replace(/(.)\1+/g, "$1");
+      if (single(g) === single(a) || dist(single(g), single(a)) <= (a.length >= 9 ? 2 : a.length >= 4 ? 1 : 0)) return { ok: true, exact: false };
+      const allowed = a.length >= 9 ? 2 : a.length >= 4 ? 1 : 0;
+      if (allowed && dist(g, a) <= allowed) return { ok: true, exact: false };
     }
     return { ok: false };
   }
