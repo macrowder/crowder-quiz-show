@@ -351,6 +351,12 @@
       const allowed = a.length >= 9 ? 2 : a.length >= 4 ? 1 : 0;
       if (allowed && dist(g, a) <= allowed) return { ok: true, exact: false };
     }
+    // Part of a full name counts when the sheet already accepts the last name: "de Champlain", "Las Casas".
+    for (const a of alts) {
+      const aw = a.split(" "), gw = g.split(" ");
+      let k = 0; aw.forEach(w => { if (w === gw[k]) k++; });
+      if (a !== g && k === gw.length && alts.some(x => x !== a && (g === x || g.endsWith(" " + x)))) return { ok: true, exact: true };
+    }
     return { ok: false };
   }
   // Google Sheets turns the words True/False into TRUE/FALSE, so compare without caring about capitals.
