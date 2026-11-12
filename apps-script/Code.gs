@@ -41,7 +41,7 @@ function doPost(e) {
       r.ts ? new Date(r.ts) : new Date(),
       clip_(r.player, 40), r.chapter, clip_(r.id, 20), clip_(r.type, 10),
       clip_(r.question, 300), clip_(r.given, 200), clip_(r.answer, 200),
-      r.correct ? 'Yes' : 'No', Number(r.seconds) || 0, clip_(r.round, 40)
+      r.correct ? 'Yes' : 'No', Number(r.seconds) || 0, clip_(r.round, 40), clip_(r.subject, 40)
     ];
   });
   if (!rows.length) return json_({ ok: true, saved: 0 });
@@ -64,25 +64,19 @@ function readSettings_() {
   return out;
 }
 
+/** Every column in the Questions tab is passed to the game by its header name, so new columns need no script change. */
 function readQuestions_() {
   var vals = SpreadsheetApp.getActive().getSheetByName('Questions').getDataRange().getValues();
   var head = vals[0].map(function (h) { return String(h).trim().toLowerCase(); });
-  var col = function (name) { return head.indexOf(name); };
   var out = [];
   for (var i = 1; i < vals.length; i++) {
-    var r = vals[i];
-    if (!r[col('id')]) continue;
-    if (/^n/i.test(String(r[col('active')]))) continue;
-    out.push({
-      id: String(r[col('id')]),
-      chapter: String(r[col('chapter')]),
-      type: String(r[col('type')]).trim().toLowerCase(),
-      question: String(r[col('question')]),
-      choices: String(r[col('choices')] || '').split('|').map(function (x) { return x.trim(); }).filter(String),
-      answer: String(r[col('answer')]),
-      fix: String(r[col('fix')] || ''),
-      group: String(r[col('group')] || '')
-    });
+    var r = vals[i], q = {};
+    head.forEach(function (h, k) { if (h) q[h] = r[k] === '' || r[k] == null ? '' : String(r[k]); });
+    if (!q.id) continue;
+    if (/^n/i.test(q.active || '')) continue;
+    q.type = String(q.type || '').trim().toLowerCase();
+    q.choices = String(q.choices || '').split('|').map(function (x) { return x.trim(); }).filter(String);
+    out.push(q);
   }
   return out;
 }

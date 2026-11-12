@@ -136,27 +136,36 @@
     show(n);
   }
 
-  function chapters() { return [...new Set(data.questions.map(q => q.chapter))].sort((a, b) => Number(b) - Number(a)); }
+  /* A "game" is one subject + chapter, e.g. "Social Studies · Chapter 7". */
+  const subj = q => (q.subject && String(q.subject).trim()) || "Social Studies";
+  const chLabel = c => (/^\d+$/.test(String(c).trim()) ? "Chapter " + c : String(c));
+  const gameKey = q => subj(q) + (q.chapter ? " · " + chLabel(q.chapter) : "");
+  function games() {
+    const keys = [...new Set(data.questions.map(gameKey))];
+    const latest = {};
+    data.questions.forEach(q => { const k = gameKey(q); const n = Number(q.chapter) || 0; latest[k] = Math.max(latest[k] || 0, n); });
+    return keys.sort((a, b) => a.split(" · ")[0].localeCompare(b.split(" · ")[0]) || latest[b] - latest[a] || a.localeCompare(b));
+  }
 
-  function missedIds(ch) {
-    return data.questions.filter(q => q.chapter === ch && data.history[q.id] && !data.history[q.id].lastRight).map(q => q.id);
+  function missedIds(g) {
+    return data.questions.filter(q => gameKey(q) === g && data.history[q.id] && !data.history[q.id].lastRight).map(q => q.id);
   }
 
   function home() {
     inRound = false; A.stopMusic(); A.setTempo(128);
-    const chs = chapters();
-    let ch = store.get("chapter", chs[0]);
+    const chs = games();
+    let ch = store.get("game", chs[0]);
     if (!chs.includes(ch)) ch = chs[0];
     const readAloud = store.get("readAloud", data.settings.readQuestionsAloud);
     const n = el(`<div class="center">
       <span class="tag">Player: ${esc(player)}</span>
       <div class="big">Ready to play?</div>
-      ${chs.length > 1 ? `<label class="card" style="text-align:left">Chapter
-        <select id="ch" style="margin-left:10px;font:inherit;padding:6px;border-radius:8px">${chs.map(c => `<option ${c === ch ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>` : `<p class="muted">Chapter ${esc(ch)}</p>`}
+      ${chs.length > 1 ? `<label class="card" style="text-align:left;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Game
+        <select id="ch" style="flex:1;min-width:0;font:inherit;padding:10px;border-radius:10px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line)">${chs.map(c => `<option ${c === ch ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>` : `<p class="muted">${esc(ch)}</p>`}
       <div class="options">
         <label class="opt"><input type="radio" name="mode" value="round" checked> <span><b>Quick round</b> · ${data.settings.roundSize} questions, focused on what you've missed</span></label>
         <label class="opt" id="missedOpt"><input type="radio" name="mode" value="missed"> <span><b>Missed questions only</b> · <span id="missedCount"></span></span></label>
-        <label class="opt"><input type="radio" name="mode" value="all"> <span><b>Whole chapter</b> · every question</span></label>
+        <label class="opt"><input type="radio" name="mode" value="all"> <span><b>Everything</b> · every question in this game</span></label>
         <label class="opt"><input type="checkbox" id="ra" ${readAloud ? "checked" : ""}> <span>Read each question out loud</span></label>
       </div>
       <button class="btn" type="button" id="go">Start <span class="kbd">Enter</span></button>
@@ -170,7 +179,7 @@
     };
     paintMissed();
     const sel = n.querySelector("#ch");
-    if (sel) sel.addEventListener("change", () => { ch = sel.value; store.set("chapter", ch); paintMissed(); });
+    if (sel) sel.addEventListener("change", () => { ch = sel.value; store.set("game", ch); paintMissed(); });
     const go = () => {
       const mode = n.querySelector("input[name=mode]:checked").value;
       store.set("readAloud", n.querySelector("#ra").checked);
@@ -184,7 +193,7 @@
 
   /* ---------- Building a round ---------- */
   function buildRound(ch, mode) {
-    const qs = data.questions.filter(q => q.chapter === ch);
+    const qs = data.questions.filter(q => gameKey(q) === ch);
     const singles = qs.filter(q => q.type !== "match");
     const groups = {};
     qs.filter(q => q.type === "match").forEach(q => (groups[q.group] = groups[q.group] || []).push(q));
@@ -390,7 +399,7 @@
     }
     if (ok && R.retry) { const m = R.missed.find(m => m.q.id === q.id); if (m) m.fixed = true; }
 
-    record({ ts: new Date().toISOString(), player, chapter: q.chapter, id: q.id, type: q.type, question: q.question,
+    record({ ts: new Date().toISOString(), player, subject: subj(q), chapter: q.chapter, id: q.id, type: q.type, question: q.question,
              given: given == null ? "(time ran out)" : given, answer: mainAnswer(q), correct: ok, seconds: secs,
              round: R.id + (R.retry && R.missed.some(m => m.q.id === q.id && m.retried) ? " retry" : "") });
 
@@ -489,7 +498,7 @@
         R.total++;
         if (ok) { R.right++; pts += Math.round(200 * (0.5 + 0.5 * frac)); }
         else { missedItems.push(q); if (!R.missed.some(x => x.q.id === q.id)) R.missed.push({ q, given: "(matching)" }); }
-        record({ ts: new Date().toISOString(), player, chapter: q.chapter, id: q.id, type: "match", question: q.question,
+        record({ ts: new Date().toISOString(), player, subject: subj(q), chapter: q.chapter, id: q.id, type: "match", question: q.question,
                  given: ok ? q.answer : "(mismatched)", answer: q.answer, correct: ok, seconds: 0, round: R.id });
       });
       R.score += pts;
