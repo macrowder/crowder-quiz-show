@@ -300,7 +300,9 @@
   function ask(q) {
     R.locked = false;
     const isTF = q.type === "tf";
-    const choices = isTF ? ["True", "False"] : q.type === "mc" ? q.choices : [];
+    // Shuffle multiple-choice answers every time, but keep "all/none of the above" at the end.
+    const keepLast = c => /\b(all|none|both) of the above\b/i.test(c);
+    const choices = isTF ? ["True", "False"] : q.type === "mc" ? shuffle(q.choices.filter(c => !keepLast(c))).concat(q.choices.filter(keepLast)) : [];
     const n = el(`<div class="stage">${hud()}
       <div class="kind">${LABEL[q.type] || ""}</div>
       <div class="qcard">${esc(q.question)}</div></div>`);
