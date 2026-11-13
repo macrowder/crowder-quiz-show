@@ -151,19 +151,22 @@
     return data.questions.filter(q => gameKey(q) === g && data.history[q.id] && !data.history[q.id].lastRight).map(q => q.id);
   }
 
+  const SIZES = [10, 20, 30, 50];
   function home() {
     inRound = false; A.stopMusic(); A.setTempo(128);
     const chs = games();
     let ch = store.get("game", chs[0]);
     if (!chs.includes(ch)) ch = chs[0];
     const readAloud = store.get("readAloud", data.settings.readQuestionsAloud);
+    let size = Number(store.get("roundSize", data.settings.roundSize || 30));
+    if (!SIZES.includes(size)) size = 30;
     const n = el(`<div class="center">
       <span class="tag">Player: ${esc(player)}</span>
       <div class="big">Ready to play?</div>
       ${chs.length > 1 ? `<label class="card" style="text-align:left;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Game
         <select id="ch" style="flex:1;min-width:0;font:inherit;padding:10px;border-radius:10px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line)">${chs.map(c => `<option ${c === ch ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>` : `<p class="muted">${esc(ch)}</p>`}
       <div class="options">
-        <label class="opt"><input type="radio" name="mode" value="round" checked> <span><b>Quick round</b> · ${data.settings.roundSize} questions, focused on what you've missed</span></label>
+        <label class="opt"><input type="radio" name="mode" value="round" checked> <span><b>Quick round</b> · <select id="size" aria-label="Number of questions" style="font:inherit;padding:4px 8px;border-radius:8px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line)">${SIZES.map(v => `<option value="${v}" ${v === size ? "selected" : ""}>${v}</option>`).join("")}</select> questions, focused on what you've missed</span></label>
         <label class="opt" id="missedOpt"><input type="radio" name="mode" value="missed"> <span><b>Missed questions only</b> · <span id="missedCount"></span></span></label>
         <label class="opt"><input type="radio" name="mode" value="all"> <span><b>Everything</b> · every question in this game</span></label>
         <label class="opt"><input type="checkbox" id="ra" ${readAloud ? "checked" : ""}> <span>Read each question out loud</span></label>
@@ -183,7 +186,9 @@
     const go = () => {
       const mode = n.querySelector("input[name=mode]:checked").value;
       store.set("readAloud", n.querySelector("#ra").checked);
-      startRound(ch, mode, n.querySelector("#ra").checked);
+      const sz = Number(n.querySelector("#size").value) || 30;
+      store.set("roundSize", sz);
+      startRound(ch, mode, n.querySelector("#ra").checked, sz);
     };
     n.querySelector("#go").addEventListener("click", go);
     keyHandler = e => { if (e.key === "Enter" && e.target.tagName !== "SELECT") { e.preventDefault(); go(); } };
@@ -192,7 +197,7 @@
   }
 
   /* ---------- Building a round ---------- */
-  function buildRound(ch, mode) {
+  function buildRound(ch, mode, size) {
     const qs = data.questions.filter(q => gameKey(q) === ch);
     const singles = qs.filter(q => q.type !== "match");
     const groups = {};
@@ -207,7 +212,7 @@
       const mg = matchItems.filter(m => m.items.some(isMissed));
       return shuffle(ms).concat(mg);
     }
-    const size = data.settings.roundSize;
+    size = size || data.settings.roundSize || 30;
     const out = [];
     const missed = shuffle(singles.filter(isMissed)).slice(0, Math.ceil(size * 0.4));
     out.push(...missed);
@@ -227,8 +232,8 @@
   /* ---------- Playing a round ---------- */
   let R = null, timerId = null;
 
-  function startRound(ch, mode, readAloud) {
-    const items = buildRound(ch, mode);
+  function startRound(ch, mode, readAloud, size) {
+    const items = buildRound(ch, mode, size);
     if (!items.length) return home();
     R = { ch, items, i: 0, score: 0, streak: 0, right: 0, total: 0, missed: [], retry: false, readAloud,
           id: new Date().toISOString().slice(0, 16).replace("T", " ") + " " + Math.random().toString(36).slice(2, 6) };
